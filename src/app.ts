@@ -1,6 +1,40 @@
 import fastify from "fastify";
-import { appRoutes } from "./http/routes.js";
+import { ZodError } from "zod";
+import { env } from "./env/index.js";
+import fastifyJwt from "@fastify/jwt";
+import { userRoutes } from "./http/controllers/user/routes.js";
+import { gymRoutes } from "./http/controllers/gym/routes.js";
+import { checkInRoutes } from "./http/controllers/check-in/routes.js";
+import fastifyCookie from "@fastify/cookie";
 
 export const app = fastify();
 
-app.register(appRoutes);
+app.register(fastifyJwt, {
+    secret: env.JWT_SECRET,
+    cookie: {
+        cookieName: 'refreshToken',
+        signed: false
+    }
+}
+)
+
+app.register(fastifyCookie)
+
+app.register(userRoutes);
+app.register(gymRoutes)
+app.register(checkInRoutes)
+
+app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof ZodError) {
+        return reply.status(400)
+        .send({ message: 'Validation Error.', issues: error.format() })
+    }
+
+    if (env.NODE_ENV !== `production` ) {
+        console.error(error)
+    } else {
+        //log to external tool DataDog/NewRelic/Sentry
+    }
+
+    return reply.status(500).send({ message: 'Internal Server Error' })
+})
